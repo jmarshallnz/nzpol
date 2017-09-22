@@ -1,0 +1,45 @@
+# download all the info from stats nz
+
+library(httr)
+library(rvest)
+
+base_url <- "http://www.elections.org.nz/research-statistics/enrolment-statistics-electorate"
+h <- read_html(base_url)
+
+electorates <- h %>% html_nodes("select") %>% html_children %>% html_text
+
+electorates <- electorates[-1]
+
+get_electorate <- function(electorate, base_url) {
+  u <- parse_url(base_url)
+  h <- read_html(modify_url(u, query=list(name=electorate)))
+  df <- h %>% html_nodes("table") %>% html_table
+  df <- df[[1]]
+  df$Electorate <- electorate
+  df
+}
+
+all <- lapply(electorates, get_electorate, base_url=base_url)
+ec <- do.call(rbind, all)
+
+to_numeric <- function(x) {
+  as.numeric(gsub("%", "", gsub(",", "", x)))
+}
+library(dplyr)
+
+ec <- ec %>% mutate_at(vars(`Est Eligible Population`:`% Enrolled`), to_numeric) %>%
+  filter(Age != "Total") %>%
+  mutate(Age = as.character(as.numeric(gsub("[0-9]+ - ([0-9]+)", "\\1", Age))+1))
+
+library(ggplot2)
+
+ggplot(ec) +
+  geom_col(aes(x=Age, y=`Total Enrolled`), position=position_nudge(x=-0.5), fill="steelblue") +
+  scale_x_discrete(labels=c(seq(25,70,by=5),""), expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  facet_wrap(~Electorate) + theme_bw() +
+  theme(axis.text.x = element_text(size=5))
+
+write.csv(ec, "enrollment_20170922_1600.csv", row.names=FALSE)
+read.csv("enrollment_20170922_1600.csv", stringsAsFactors = FALSE, check.names = FALSE)
+
