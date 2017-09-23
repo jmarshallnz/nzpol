@@ -37,5 +37,16 @@ ggplot(ec) +
   theme(axis.text.x = element_text(size=5))
 
 write.csv(ec, "enrollment_20170922_1600.csv", row.names=FALSE)
-read.csv("enrollment_20170922_1600.csv", stringsAsFactors = FALSE, check.names = FALSE)
+old <- read.csv("enrollment_20170922_1600.csv", stringsAsFactors = FALSE, check.names = FALSE)
+old$Age <- as.character(old$Age)
 
+both <- ec %>% left_join(old, by=c('Age', 'Electorate')) %>%
+  mutate(Difference = `Total Enrolled.x` - `Total Enrolled.y`)
+
+ggplot(both) +
+  geom_col(aes(x=Age, y=Difference), position=position_nudge(x=-0.5), fill="steelblue") +
+  scale_x_discrete(labels=c(seq(25,70,by=5),""), expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,1)) +
+  facet_wrap(~Electorate) + theme_bw() +
+  theme(axis.text.x = element_text(size=5))
+ggsave("new_enrolments.png", width = 10, height = 8, dpi=72)
