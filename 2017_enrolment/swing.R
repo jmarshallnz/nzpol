@@ -40,10 +40,10 @@ pv2014 <- pv2014 %>% filter(Party != "TOTAL") %>% left_join(pv_totals) %>%
 
 
 get_electorate_2017 <- function(elect) {
-  base_url <- "http://www.electionresults.govt.nz/electorate-details-"
+  base_url <- "http://www.electionresults.govt.nz/electionresults_2017/electorate-details-"
   url <- sprintf("%s%02d.html", base_url, elect)
   u <- read_html(url)
-  elect_name <- u %>% html_nodes("h2") %>% html_text() %>% strsplit("  - ") %>% unlist
+  elect_name <- u %>% html_nodes("h2") %>% html_text() %>% strsplit(" - ") %>% unlist
   h <- read_html(url) %>% html_nodes("table") %>% html_table(fill=TRUE)
   elec <- h[[3]] %>% separate(Candidates, into=c("Candidate", "CandVotes"), "\n") %>%
     separate(Party, into=c("Party", "PartyVotes"), "\n") %>%
