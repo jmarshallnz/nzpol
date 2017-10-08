@@ -4,6 +4,7 @@ library(rvest)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(forcats)
 
 electorates <- 1:71
 parties <- c("New Zealand First Party", "National Party", "Green Party", "Labour Party")
@@ -75,7 +76,7 @@ pv2017 %>% filter(Party == "National Party") %>% arrange(desc(PercPartyVotes))
 
 pv2017 %>% filter(Electorate == "Nelson") %>% arrange(desc(PercPartyVotes))
 
-pv2017 %>% mutate(Combine = fct_collapse(Party,
+pv2017 %>% filter(Party %in% parties) %>% mutate(Combine = fct_collapse(Party,
   `Labour+Greens` = c("Labour Party", "Green Party"),
   `NZ First` = "New Zealand First Party",
   National = "National Party")) %>% group_by(Electorate, Combine) %>%
@@ -97,17 +98,16 @@ ggplot(comb) +
 ggsave("combined_cand_vs_elect.png", width=10, height=10, dpi=120)
 
 
-
-
-u <- read_html("http://www.electionresults.govt.nz/index.html")
-count <- u %>% html_nodes("h3") %>% html_text
-curr <- sub(".*?([0-9\\.]+)%.*", "\\1", count[2])
-
-library(forcats)
+# Below code for computing how far through counting is on the night
+#u <- read_html("http://www.electionresults.govt.nz/index.html")
+#count <- u %>% html_nodes("h3") %>% html_text
+#curr <- sub(".*?([0-9\\.]+)%.*", "\\1", count[2])
+curr <- ""
 
 compare <- pv2017 %>%
   left_join(pv2014, by=c("Party", "Electorate")) %>%
-  mutate(Swing = 100*(Votes.x - Votes.y)) %>%
+  filter(Party %in% parties) %>%
+  mutate(Swing = PercPartyVotes.x - PercPartyVotes.y) %>%
   mutate(Party=fct_recode(Party, W="New Zealand First Party",
              N="National Party",
              L="Labour Party",
@@ -116,7 +116,7 @@ compare <- pv2017 %>%
 # now plot
 ggplot(compare) +
   geom_col(aes(x=Party, y=Swing, fill=Party)) +
-  facet_wrap(~ElectName) +
+  facet_wrap(~Electorate) +
   scale_fill_manual(values=c("green3", "red", "blue", "grey30")) +
   guides(fill=FALSE) +
   ylab("") +
@@ -127,29 +127,14 @@ ggplot(compare) +
 
 ggsave(paste0("swing_", curr, ".png"), width=10, height=10, dpi=120)
 
-
-compare <- rbind(pv2017 %>% filter(Party %in% parties) %>% mutate(Election=2017),
-                 pv2014 %>% filter(Party %in% parties) %>% mutate(Election=2014)) %>%
-  mutate(Election = as.factor(Election))
-
-greens <- compare %>% filter(Party == "Green Party") %>% 
-
-# fit a model to PV
-library(lme4)
-mod <- lmer(PercPartyVotes ~ -1 + Electorate + Election + (1 | Candidate), data=compare %>% filter(Party == "National Party"))
-summary(mod)
-df <- tbl_df(ranef(mod)$Candidate) %>% tibble::rownames_to_column("Candidate") %>% rename(Effect=`(Intercept)`) %>%
-  arrange(desc(Effect))
-
-# need to include only those candidates who exist across more than one election
-compare %>% group_by(Candidate) %>% summarize(Elect=n() == 2) %>% filter(Elect)
-
-[order(ranef(mod)$Candidate[,1]),]
-
-library(visreg)
-
+# messing around with a bunch of other stuff
 trans <- scales::trans_new("From100", function(x) { x }, function(x) { x },
                            format=scales::percent)
+
+compare <- rbind(pv2017 %>% mutate(Election=2017),
+                 pv2014 %>% mutate(Election=2014)) %>%
+  filter(Party %in% parties)
+
 ggplot(compare %>%
          group_by(Party) %>%
          select(Electorate, Election, PercPartyVotes) %>%
@@ -167,12 +152,3 @@ ggplot(compare %>%
   theme_bw(base_size = 9) +
   theme(strip.text = element_text(size=7))
 ggsave("elect_performance_percent.png", width=10, height=10, dpi=80)
-
-  
-
-
-  mutate(Swing = 100*(Votes.x - Votes.y)) %>%
-  mutate(Party=fct_recode(Party, W="New Zealand First Party",
-                          N="National Party",
-                          L="Labour Party",
-                          G="Green Party"))
